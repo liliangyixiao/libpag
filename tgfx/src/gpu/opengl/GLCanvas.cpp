@@ -20,6 +20,7 @@
 #include "GLFillRectOp.h"
 #include "GLRRectOp.h"
 #include "GLSurface.h"
+#include "core/TriangularPathMesh.h"
 #include "core/utils/MathExtra.h"
 #include "gpu/AARectEffect.h"
 #include "gpu/AlphaFragmentProcessor.h"
@@ -79,6 +80,22 @@ static bool IsPixelAligned(const Rect& rect) {
 
 void GLCanvas::drawTexture(const Texture* texture, const RGBAAALayout* layout) {
   drawTexture(texture, layout, nullptr, false);
+}
+
+void GLCanvas::drawMask(const Texture* mask, const Paint& paint) {
+  if (mask == nullptr) {
+    return;
+  }
+  auto bounds = Rect::MakeWH(static_cast<float>(mask->width()), static_cast<float>(mask->height()));
+  auto localBounds = clipLocalBounds(bounds);
+  if (localBounds.isEmpty()) {
+    return;
+  }
+  auto shader = paint.getShader();
+  if (shader == nullptr) {
+    shader = Shader::MakeColorShader(paint.getColor());
+  }
+  drawMask(localBounds, mask, shader.get(), false);
 }
 
 std::unique_ptr<FragmentProcessor> GLCanvas::getClipMask(const Rect& deviceBounds,
@@ -226,24 +243,39 @@ void GLCanvas::fillPath(const Path& path, const Shader* shader) {
   drawMask(deviceBounds, maskTexture.get(), shader);
 }
 
-void GLCanvas::drawMask(const Rect& bounds, const Texture* mask, const Shader* shader) {
+void GLCanvas::drawMask(const Rect& bounds, const Texture* mask, const Shader* shader,
+                        bool appliedMatrix) {
   if (mask == nullptr || shader == nullptr) {
     return;
   }
-  auto scale =
-      mask->getTextureCoord(static_cast<float>(mask->width()), static_cast<float>(mask->height()));
   auto localMatrix = Matrix::I();
   localMatrix.postScale(bounds.width(), bounds.height());
   localMatrix.postTranslate(bounds.x(), bounds.y());
-  auto invert = Matrix::I();
-  state->matrix.invert(&invert);
-  localMatrix.postConcat(invert);
+  auto maskLocalMatrix = Matrix::I();
+  if (appliedMatrix) {
+    auto invert = Matrix::I();
+    state->matrix.invert(&invert);
+    localMatrix.postConcat(invert);
+    auto scale = mask->getTextureCoord(static_cast<float>(mask->width()),
+                                       static_cast<float>(mask->height()));
+    maskLocalMatrix.postScale(scale.x, scale.y);
+  } else {
+    auto scale = mask->getTextureCoord(static_cast<float>(bounds.width()),
+                                       static_cast<float>(bounds.height()));
+    auto translate = mask->getTextureCoord(bounds.x(), bounds.y());
+    maskLocalMatrix.postScale(scale.x, scale.y);
+    maskLocalMatrix.postTranslate(translate.x, translate.y);
+  }
   auto args = FPArgs(getContext(), localMatrix);
-  save();
-  resetMatrix();
+  auto oldMatrix = state->matrix;
+  if (appliedMatrix) {
+    resetMatrix();
+  }
   draw(GLFillRectOp::Make(bounds, getViewMatrix()), shader->asFragmentProcessor(args),
-       TextureMaskFragmentProcessor::MakeUseLocalCoord(mask, Matrix::MakeScale(scale.x, scale.y)));
-  restore();
+       TextureMaskFragmentProcessor::MakeUseLocalCoord(mask, maskLocalMatrix));
+  if (appliedMatrix) {
+    setMatrix(oldMatrix);
+  }
 }
 
 void GLCanvas::drawGlyphs(const GlyphID glyphIDs[], const Point positions[], size_t glyphCount,
@@ -382,6 +414,40 @@ void GLCanvas::drawAtlas(const Texture* atlas, const Matrix matrix[], const Rect
   }
   draw(GLFillRectOp::Make(rects, matrices, localMatrices, colorVector), std::move(colorFP),
        std::move(maskFP), false);
+}
+
+void GLCanvas::drawMesh(const TriangularPathMesh* pathMesh, const Paint& paint) {
+  auto shader = paint.getShader();
+  if (shader == nullptr) {
+    shader = Shader::MakeColorShader(paint.getColor());
+  }
+  auto viewMatrix = getViewMatrix();
+  auto point = Point::Zero();
+  auto bounds = pathMesh->bounds();
+  auto vertices = pathMesh->vertices();
+  if (!viewMatrix.isIdentity()) {
+    viewMatrix.mapRect(&bounds);
+    for (size_t i = 0; i < vertices.size(); i += 3) {
+      viewMatrix.mapXY(vertices[i], vertices[i + 1], &point);
+      vertices[i] = point.x;
+      vertices[i + 1] = point.y;
+    }
+  }
+  auto clipBounds = state->clip.getBounds();
+  clipBounds.roundOut();
+  if (!clipBounds.intersect(bounds)) {
+    return;
+  }
+  auto op = GLTriangulatingPathOp::Make(std::move(vertices), pathMesh->vertexCount(), bounds);
+  if (op) {
+    auto localMatrix = Matrix::I();
+    viewMatrix.invert(&localMatrix);
+    auto oldMatrix = state->matrix;
+    resetMatrix();
+    auto args = FPArgs(getContext(), localMatrix);
+    draw(std::move(op), shader->asFragmentProcessor(args));
+    setMatrix(oldMatrix);
+  }
 }
 
 GLDrawer* GLCanvas::getDrawer() {

@@ -16,29 +16,28 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
-#pragma once
-
-#include "GLDrawer.h"
-#include "tgfx/core/Path.h"
+#include "tgfx/core/Mesh.h"
+#include "PathRef.h"
+#include "SimplePathMesh.h"
+#include "TriangularPathMesh.h"
 
 namespace tgfx {
-class GLTriangulatingPathOp : public GLDrawOp {
- public:
-  static std::unique_ptr<GLTriangulatingPathOp> Make(const Path& path, Rect clipBounds);
-
-  static std::unique_ptr<GLTriangulatingPathOp> Make(std::vector<float> vertex, int vertexCount,
-                                                     Rect bounds);
-
-  std::unique_ptr<GeometryProcessor> getGeometryProcessor(const DrawArgs& args) override;
-
-  std::vector<float> vertices(const DrawArgs& args) override;
-
-  void draw(const DrawArgs& args) override;
-
- private:
-  GLTriangulatingPathOp(std::vector<float> vertex, int vertexCount, Rect bounds);
-
-  std::vector<float> vertex;
-  int vertexCount;
-};
+std::unique_ptr<Mesh> Mesh::MakeFrom(const Path& path, const Rect* clipBounds) {
+  if (clipBounds && !path.getBounds().intersect(*clipBounds)) {
+    return nullptr;
+  }
+  if (path.asRect(nullptr) || path.asRRect(nullptr)) {
+    return std::make_unique<SimplePathMesh>(path, clipBounds);
+  }
+  const auto& skPath = PathRef::ReadAccess(path);
+  std::vector<float> vertices;
+  auto skRect = clipBounds ? pk::SkRect::MakeLTRB(clipBounds->left, clipBounds->top,
+                                                  clipBounds->right, clipBounds->bottom)
+                           : skPath.getBounds();
+  int count = skPath.toAATriangles(DefaultTolerance, skRect, &vertices);
+  if (count == 0) {
+    return nullptr;
+  }
+  return std::make_unique<TriangularPathMesh>(std::move(vertices), count, path.getBounds());
+}
 }  // namespace tgfx

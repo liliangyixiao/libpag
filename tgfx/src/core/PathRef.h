@@ -23,6 +23,12 @@
 namespace tgfx {
 class Path;
 
+// When tessellating curved paths into linear segments, this defines the maximum distance in
+// screen space which a segment may deviate from the mathematically correct value. Above this
+// value, the segment will be subdivided. This value was chosen to approximate the super sampling
+// accuracy of the raster path (16 samples, or one quarter pixel).
+static constexpr float DefaultTolerance = 0.25f;
+
 class PathRef {
  public:
   static const pk::SkPath& ReadAccess(const Path& path);

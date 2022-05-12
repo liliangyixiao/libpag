@@ -16,29 +16,22 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
-#pragma once
-
-#include "GLDrawer.h"
-#include "tgfx/core/Path.h"
+#include "SimplePathMesh.h"
+#include "tgfx/gpu/Canvas.h"
 
 namespace tgfx {
-class GLTriangulatingPathOp : public GLDrawOp {
- public:
-  static std::unique_ptr<GLTriangulatingPathOp> Make(const Path& path, Rect clipBounds);
-
-  static std::unique_ptr<GLTriangulatingPathOp> Make(std::vector<float> vertex, int vertexCount,
-                                                     Rect bounds);
-
-  std::unique_ptr<GeometryProcessor> getGeometryProcessor(const DrawArgs& args) override;
-
-  std::vector<float> vertices(const DrawArgs& args) override;
-
-  void draw(const DrawArgs& args) override;
-
- private:
-  GLTriangulatingPathOp(std::vector<float> vertex, int vertexCount, Rect bounds);
-
-  std::vector<float> vertex;
-  int vertexCount;
-};
+void SimplePathMesh::draw(Canvas* canvas, const Paint& paint) const {
+  auto needsRestore = false;
+  if (!clipBounds.isEmpty()) {
+    canvas->save();
+    auto clip = Path();
+    clip.addRect(clipBounds);
+    canvas->clipPath(clip);
+    needsRestore = true;
+  }
+  canvas->drawPath(path, paint);
+  if (needsRestore) {
+    canvas->restore();
+  }
+}
 }  // namespace tgfx

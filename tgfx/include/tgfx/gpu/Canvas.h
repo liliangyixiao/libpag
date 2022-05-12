@@ -20,6 +20,7 @@
 
 #include "tgfx/core/BlendMode.h"
 #include "tgfx/core/Font.h"
+#include "tgfx/core/Mesh.h"
 #include "tgfx/core/Path.h"
 #include "tgfx/core/RGBAAALayout.h"
 #include "tgfx/gpu/Paint.h"
@@ -31,6 +32,8 @@ class Surface;
 class SurfaceOptions;
 
 struct CanvasState;
+
+class TriangularPathMesh;
 
 /**
  * Canvas provides an interface for drawing, and how the drawing is clipped and transformed. Canvas
@@ -138,6 +141,8 @@ class Canvas {
    */
   void drawRect(const Rect& rect, const Paint& paint);
 
+  virtual void drawMask(const Texture* mask, const Paint& paint) = 0;
+
   /**
    * Draws a Texture, with its top-left corner at (0, 0), using a mask texture and current alpha,
    * blend mode, clip and matrix. The mask texture has the same position and size with the texture.
@@ -167,6 +172,8 @@ class Canvas {
    */
   virtual void drawPath(const Path& path, const Paint& paint) = 0;
 
+  void drawMesh(const Mesh* mesh, const Paint& paint);
+
   /**
    * Draw array of glyphs with specified font, using current alpha, blend mode, clip and Matrix.
    */
@@ -192,8 +199,11 @@ class Canvas {
   virtual void onRestore() = 0;
   virtual void onSetMatrix(const Matrix& matrix) = 0;
   virtual void onClipPath(const Path& path) = 0;
+  virtual void drawMesh(const TriangularPathMesh* mesh, const Paint& paint) = 0;
 
  private:
   std::vector<std::shared_ptr<CanvasState>> savedStateList = {};
+
+  friend class TriangularPathMesh;
 };
 }  // namespace tgfx

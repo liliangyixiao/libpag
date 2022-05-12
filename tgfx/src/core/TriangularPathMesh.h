@@ -18,27 +18,40 @@
 
 #pragma once
 
-#include "GLDrawer.h"
-#include "tgfx/core/Path.h"
+#include "tgfx/core/Mesh.h"
+#include "tgfx/gpu/Canvas.h"
 
 namespace tgfx {
-class GLTriangulatingPathOp : public GLDrawOp {
+class TriangularPathMesh : public Mesh {
  public:
-  static std::unique_ptr<GLTriangulatingPathOp> Make(const Path& path, Rect clipBounds);
+  TriangularPathMesh(std::vector<float> vertices, int vertexCount, Rect bounds)
+      : _vertices(std::move(vertices)), _vertexCount(vertexCount), _bounds(bounds) {
+  }
 
-  static std::unique_ptr<GLTriangulatingPathOp> Make(std::vector<float> vertex, int vertexCount,
-                                                     Rect bounds);
+  const std::vector<float>& vertices() const {
+    return _vertices;
+  }
 
-  std::unique_ptr<GeometryProcessor> getGeometryProcessor(const DrawArgs& args) override;
+  std::vector<float>& vertices() {
+    return _vertices;
+  }
 
-  std::vector<float> vertices(const DrawArgs& args) override;
+  int vertexCount() const {
+    return _vertexCount;
+  }
 
-  void draw(const DrawArgs& args) override;
+  const Rect& bounds() const {
+    return _bounds;
+  }
+
+ protected:
+  void draw(Canvas* canvas, const Paint& paint) const override {
+    canvas->drawMesh(this, paint);
+  }
 
  private:
-  GLTriangulatingPathOp(std::vector<float> vertex, int vertexCount, Rect bounds);
-
-  std::vector<float> vertex;
-  int vertexCount;
+  std::vector<float> _vertices;
+  int _vertexCount;
+  Rect _bounds;
 };
 }  // namespace tgfx

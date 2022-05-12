@@ -18,27 +18,24 @@
 
 #pragma once
 
-#include "GLDrawer.h"
 #include "tgfx/core/Path.h"
+#include "tgfx/gpu/Paint.h"
 
 namespace tgfx {
-class GLTriangulatingPathOp : public GLDrawOp {
+class Canvas;
+
+class Mesh {
  public:
-  static std::unique_ptr<GLTriangulatingPathOp> Make(const Path& path, Rect clipBounds);
+  /**
+   * Initialize the Mesh with the specified path.
+   */
+  static std::unique_ptr<Mesh> MakeFrom(const Path& path, const Rect* clipBounds = nullptr);
 
-  static std::unique_ptr<GLTriangulatingPathOp> Make(std::vector<float> vertex, int vertexCount,
-                                                     Rect bounds);
+  virtual ~Mesh() = default;
 
-  std::unique_ptr<GeometryProcessor> getGeometryProcessor(const DrawArgs& args) override;
+ protected:
+  virtual void draw(Canvas* canvas, const Paint& paint) const = 0;
 
-  std::vector<float> vertices(const DrawArgs& args) override;
-
-  void draw(const DrawArgs& args) override;
-
- private:
-  GLTriangulatingPathOp(std::vector<float> vertex, int vertexCount, Rect bounds);
-
-  std::vector<float> vertex;
-  int vertexCount;
+  friend class Canvas;
 };
 }  // namespace tgfx

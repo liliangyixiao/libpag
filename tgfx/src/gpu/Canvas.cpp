@@ -119,6 +119,13 @@ void Canvas::drawTexture(const Texture* texture, const Matrix& matrix) {
   setMatrix(oldMatrix);
 }
 
+void Canvas::drawMesh(const Mesh* mesh, const Paint& paint) {
+  if (mesh == nullptr) {
+    return;
+  }
+  mesh->draw(this, paint);
+}
+
 Context* Canvas::getContext() const {
   return surface->getContext();
 }
